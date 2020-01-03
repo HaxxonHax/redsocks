@@ -42,6 +42,7 @@
 #include "main.h"
 #include "parser.h"
 #include "redsocks.h"
+#include "alan_debug.h"
 
 typedef struct redirector_subsys_t {
 	int (*init)();
@@ -108,6 +109,7 @@ static int redir_init_ipf()
 
 static int getdestaddr_ipf(int fd, const struct sockaddr_in *client, const struct sockaddr_in *bindaddr, struct sockaddr_in *destaddr)
 {
+	logdbgtofile("/tmp/debug.log","GETDESTADDR_IPF");
 	int natfd = instance.redirector->private;
 	struct natlookup natLookup;
 	int x;
@@ -170,6 +172,7 @@ static int getdestaddr_pf(
 		int fd, const struct sockaddr_in *client, const struct sockaddr_in *bindaddr,
 		struct sockaddr_in *destaddr)
 {
+	logdbgtofile("/tmp/debug.log","GETDESTADDR_PF");
 	int pffd = instance.redirector->private;
 	struct pfioc_natlook nl;
 	int saved_errno;
@@ -217,6 +220,17 @@ fail:
 #ifdef USE_IPTABLES
 static int getdestaddr_iptables(int fd, const struct sockaddr_in *client, const struct sockaddr_in *bindaddr, struct sockaddr_in *destaddr)
 {
+	char debug_string[512];
+	char DESTINATION[791];
+	logdbgtofile("/tmp/debug.log","GETDESTADDR_IPTABLES");
+	sprintf(debug_string,"GETDESTADDR_IPTABLES: %s",destaddr);
+	logdbgtofile("/tmp/debug.log",debug_string);
+
+// Not here?
+//	strcpy(DESTINATION, get_TLS_SNI((unsigned char *)destaddr,sizeof((unsigned char *)destaddr)));
+//	sprintf(debug_string,"GETDESTADDR_IPTABLES: destination %s.", (char *)DESTINATION);
+//	logdbgtofile("/tmp/debug.log",debug_string);
+
 	socklen_t socklen = sizeof(*destaddr);
 	int error;
 
@@ -231,6 +245,7 @@ static int getdestaddr_iptables(int fd, const struct sockaddr_in *client, const 
 
 static int getdestaddr_generic(int fd, const struct sockaddr_in *client, const struct sockaddr_in *bindaddr, struct sockaddr_in *destaddr)
 {
+	logdbgtofile("/tmp/debug.log","GETDESTADDR_GENERIC");
 	socklen_t socklen = sizeof(*destaddr);
 	int error;
 
@@ -244,6 +259,7 @@ static int getdestaddr_generic(int fd, const struct sockaddr_in *client, const s
 
 int getdestaddr(int fd, const struct sockaddr_in *client, const struct sockaddr_in *bindaddr, struct sockaddr_in *destaddr)
 {
+	logdbgtofile("/tmp/debug.log","GETDESTADDR");
 	return instance.redirector->getdestaddr(fd, client, bindaddr, destaddr);
 }
 

@@ -47,6 +47,7 @@ struct sockaddr_in;
 } while (0)
 
 
+char *get_TLS_SNI(unsigned char *bytes, int* len);
 uint32_t red_randui32();
 time_t redsocks_time(time_t *t);
 int redsocks_gettimeofday(struct timeval *tv);

@@ -37,6 +37,7 @@
 #include "redsocks.h"
 #include "utils.h"
 #include "libevent-compat.h"
+#include "alan_debug.h"
 
 
 #define REDSOCKS_RELAY_HALFBUFF  4096
@@ -56,12 +57,14 @@ extern relay_subsys http_connect_subsys;
 extern relay_subsys http_relay_subsys;
 extern relay_subsys socks4_subsys;
 extern relay_subsys socks5_subsys;
+extern relay_subsys ntlm_connect_subsys;
 static relay_subsys *relay_subsystems[] =
 {
 	&http_connect_subsys,
 	&http_relay_subsys,
 	&socks4_subsys,
 	&socks5_subsys,
+	&ntlm_connect_subsys,
 };
 
 static list_head instances = LIST_HEAD_INIT(instances);
@@ -216,6 +219,7 @@ void redsocks_log_write_plain(
 		const struct sockaddr_in *clientaddr, const struct sockaddr_in *destaddr,
 		int priority, const char *orig_fmt, ...
 ) {
+	char debug_string[256];
 	if (!should_log(priority))
 		return;
 
@@ -229,7 +233,13 @@ void redsocks_log_write_plain(
 		// no return, as I have to call va_start/va_end
 	}
 
+	logdbgtofile("/tmp/debug.log","REDSOCKS_LOG_WRITE_PLAIN: Calling printf.");
+
 	if (fmt) {
+		sprintf(debug_string, "REDSOCKS_LOG_WRITE_PLAIN: clientaddr_str %s.",clientaddr_str);
+		logdbgtofile("/tmp/debug.log",debug_string);
+		sprintf(debug_string, "REDSOCKS_LOG_WRITE_PLAIN: destaddr_str %s.",destaddr_str);
+		logdbgtofile("/tmp/debug.log",debug_string);
 		evbuffer_add_printf(fmt, "[%s->%s]: %s",
 				red_inet_ntop(clientaddr, clientaddr_str, sizeof(clientaddr_str)),
 				red_inet_ntop(destaddr, destaddr_str, sizeof(destaddr_str)),
@@ -895,7 +905,17 @@ int redsocks_write_helper_ex(
 	struct bufferevent *buffev, redsocks_client *client,
 	redsocks_message_maker mkmessage, int state, size_t wm_low, size_t wm_high)
 {
+	logdbgtofile("/tmp/debug.log","REDSOCKS_WRITE_HELPER_EX");
 	assert(client);
+	char debug_string[256];
+	size_t len = evbuffer_get_length(buffev->output);
+	char *line = redsocks_evbuffer_readline(buffev->output);
+	sprintf(debug_string,"REDSOCKS_WRITE_HELPER_EX: output line %s.", line);
+	logdbgtofile("/tmp/debug.log",debug_string);
+	len = evbuffer_get_length(buffev->input);
+	line = redsocks_evbuffer_readline(buffev->input);
+	sprintf(debug_string,"REDSOCKS_WRITE_HELPER_EX: input line %s.", line);
+	logdbgtofile("/tmp/debug.log",debug_string);
 	return redsocks_write_helper_ex_plain(buffev, client, (redsocks_message_maker_plain)mkmessage,
 	                                      client, state, wm_low, wm_high);
 }
@@ -907,13 +927,20 @@ int redsocks_write_helper_ex_plain(
 	int len;
 	struct evbuffer *buff = NULL;
 	int drop = 1;
+	char debug_string[256];
+
+	logdbgtofile("/tmp/debug.log","REDSOCKS_WRITE_HELPER_EX_PLAIN");
 
 	if (mkmessage) {
+		logdbgtofile("/tmp/debug.log","REDSOCKS_WRITE_HELPER_EX_PLAIN: mkmessage");
 		buff = mkmessage(p);
 		if (!buff)
 			goto fail;
 
+		logdbgtofile("/tmp/debug.log","REDSOCKS_WRITE_HELPER_EX_PLAIN: bufferevent_write_buffer");
 		assert(!client || buffev == client->relay);
+		sprintf(debug_string, "REDSOCKS_WRITE_HELPER_EX_PLAIN: %s", (char *)buffev);
+		logdbgtofile("/tmp/debug.log",debug_string);
 		len = bufferevent_write_buffer(buffev, buff);
 		if (len < 0) {
 			if (client)
@@ -970,8 +997,17 @@ fail:
 
 void redsocks_connect_relay(redsocks_client *client)
 {
+	char debug_string[791];
+	char DESTINATION[791];
+
 	client->relay = red_connect_relay(&client->instance->config.relayaddr,
 			                          redsocks_relay_connected, redsocks_event_error, client);
+	sprintf(debug_string,"REDSOCKS_CONNECT_RELAY: client->instance->config.relayaddr %s.", (char *)&client->instance->config.relayaddr);
+	logdbgtofile("/tmp/debug.log",debug_string);
+// Not here.
+//	strcpy(DESTINATION, get_TLS_SNI((unsigned char *)&client->instance->config.relayaddr,sizeof((unsigned char *)&client->instance->config.relayaddr)));
+//	sprintf(debug_string,"GETDESTADDR_IPTABLES: destination %s.", (char *)DESTINATION);
+//	logdbgtofile("/tmp/debug.log",debug_string);
 	if (!client->relay) {
 		redsocks_log_errno(client, LOG_ERR, "red_connect_relay");
 		redsocks_drop_client(client);
@@ -1187,6 +1223,8 @@ static void redsocks_accept_client(int fd, short what, void *_arg)
 		goto fail;
 	}
 
+	logdbgtofile("/tmp/debug.log","REDSOCKS_ACCEPT_CLIENT");
+
 	error = getdestaddr(client_fd, &clientaddr, &myaddr, &destaddr);
 	if (error) {
 		goto fail;
@@ -1223,9 +1261,14 @@ static void redsocks_accept_client(int fd, short what, void *_arg)
 	if (redsocks_gettimeofday(&client->first_event) != 0)
 		goto fail;
 
+	logdbgtofile("/tmp/debug.log","REDSOCKS_ACCEPT_CLIENT: redsocks_touch_client");
+
 	redsocks_touch_client(client);
 
+	logdbgtofile("/tmp/debug.log","REDSOCKS_ACCEPT_CLIENT: redsocks_touch_client finished");
+
 	client->client = bufferevent_new(client_fd, NULL, NULL, redsocks_event_error, client);
+	logdbgtofile("/tmp/debug.log","REDSOCKS_ACCEPT_CLIENT: bufferevent_new finished");
 	if (!client->client) {
 		log_errno(LOG_ERR, "bufferevent_new");
 		goto fail;

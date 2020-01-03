@@ -29,6 +29,7 @@
 #include "utils.h"
 #include "parser.h"
 #include "log.h"
+#include "alan_debug.h"
 
 #define FREE(ptr) do { free(ptr); ptr = NULL; } while (0)
 
@@ -350,6 +351,7 @@ static int vp_uint32(parser_context *context, void *addr, const char *token)
 static int vp_in_addr(parser_context *context, void *addr, const char *token)
 {
 	struct in_addr ia;
+	char debug_string[256];
 
 	if (inet_aton(token, &ia)) {
 		memcpy(addr, &ia, sizeof(ia));
@@ -362,6 +364,8 @@ static int vp_in_addr(parser_context *context, void *addr, const char *token)
 		hints.ai_socktype = SOCK_STREAM; /* I want to have one address once and ONLY once, that's why I specify socktype and protocol */
 		hints.ai_protocol = IPPROTO_TCP;
 		hints.ai_flags = AI_ADDRCONFIG; /* I don't need IPv4 addrs without IPv4 connectivity */
+		sprintf(debug_string, "VP_IN_ADDR: %s\n", token);
+		logdbgtofile("/tmp/debug.log", debug_string);
 		err = getaddrinfo(token, NULL, &hints, &ainfo);
 		if (err == 0) {
 			int count, taken;
